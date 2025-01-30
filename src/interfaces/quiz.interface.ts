@@ -1,5 +1,4 @@
 export interface Quiz {
-    id: number;
     name: string | null;
     title: string;
     description: string;
@@ -13,7 +12,6 @@ export interface Quiz {
   }
   
   export interface QuizSubmission {
-    id: number;
     quiz_id: number;
     user_id: string;
     score: number;
