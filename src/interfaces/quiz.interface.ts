@@ -20,7 +20,7 @@ export interface Quiz {
 }
 export interface QuizSubmission {
   quiz_id: number;
-  user_id: string | mongoose.Types.ObjectId;
+  user_id: Number | mongoose.Types.ObjectId;
   submitted_at: string;
   created_at: string;
   updated_at: string;

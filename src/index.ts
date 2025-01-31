@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import quizRoutes from './routes/quiz.routes';
-
+import analysisRoutes from './routes/analysis.routes';
 dotenv.config();
 
 const app: Application = express();
@@ -32,6 +32,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api', quizRoutes);
+app.use('/api', analysisRoutes);
+
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err);

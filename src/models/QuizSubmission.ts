@@ -1,15 +1,16 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { QuizSubmission as IQuizSubmission } from '../interfaces/quiz.interface';
+import { NumericLiteral } from 'typescript';
 
 export interface QuizSubmissionDocument extends IQuizSubmission, Document {
   quiz: mongoose.Types.ObjectId; // Reference to Quiz model
-  user_id: mongoose.Types.ObjectId; // Ensure ObjectId is used for users
+  user_id: Number; 
 }
 
 const QuizSubmissionSchema: Schema = new Schema(
   {
     quiz: { type: Schema.Types.ObjectId, ref: 'Quiz', required: true },
-    user_id: { type: Schema.Types.ObjectId, required: true },
+    user_id: { type: Number, required: true },
     submitted_at: { type: String, required: true },
     created_at: { type: String, required: true },
     updated_at: { type: String, required: true },
