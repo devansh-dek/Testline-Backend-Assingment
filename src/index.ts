@@ -1,34 +1,48 @@
-// src/server.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import quizRoutes from './routes/quiz.routes';
 
 dotenv.config();
 
 const app: Application = express();
 const port = process.env.PORT || 3000;
+const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mydatabase';
 
-// Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Basic health check route
+const connectDB = async () => {
+  try {
+    await mongoose.connect(mongoURI);
+    console.log('✅ MongoDB connected successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', error);
+    process.exit(1);
+  }
+};
+
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
-});
-
-// Global error handler
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    status: 'error',
-    message: 'Something went wrong!'
+  res.status(200).json({
+    server: 'running',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'not connected'
   });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.use('/api', quizRoutes);
+
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({ status: 'error', message: err.message || 'Internal server error' });
 });
+
+const startServer = async () => {
+  await connectDB();
+  app.listen(port, () => console.log(`🚀 Server is running on port ${port}`));
+};
+
+startServer();
 
 export default app;

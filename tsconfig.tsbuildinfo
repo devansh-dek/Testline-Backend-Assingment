@@ -1,0 +1,1 @@
+{"root":["./src/index.ts","./src/controllers/quiz.controller.ts","./src/interfaces/quiz.interface.ts","./src/models/quiz.ts","./src/models/quizsubmission.ts","./src/repositories/quiz.repository.ts","./src/repositories/quizsubmission.repository.ts","./src/routes/quiz.routes.ts","./src/services/quiz.service.ts"],"errors":true,"version":"5.7.3"}
