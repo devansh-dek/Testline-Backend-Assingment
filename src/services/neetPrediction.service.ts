@@ -1,69 +1,176 @@
-import { NEETScore, PredictionResult, College } from '../interfaces/neet.interface';
+import { NEETScore } from '../interfaces/neet.interface';
+import { NEETHistoricalData, INEETHistoricalData } from '../models/NEETRankData';
 import { NEETPredictionRepository } from '../repositories/neetPrediction.repository';
-import { ValidationError } from '../utils/error';
-
 
 export class NEETPredictionService {
-    private repository: NEETPredictionRepository;
+  private readonly SUBJECT_MAX_SCORE = 180;
+  private readonly TOTAL_MAX_SCORE = 720;
+  private predictionRepository: NEETPredictionRepository;
 
-    constructor() {
-        this.repository = new NEETPredictionRepository();
-    }
+  constructor() {
+    this.predictionRepository = new NEETPredictionRepository();
+  }
 
-    private validateScores(scores: NEETScore): void {
-        const maxScore = 180;
-        if (scores.physics < 0 || scores.physics > maxScore ||
-            scores.chemistry < 0 || scores.chemistry > maxScore ||
-            scores.biology < 0 || scores.biology > maxScore) {
-            throw new ValidationError('Invalid scores. Scores must be between 0 and 180');
+  async predictColleges(scores: NEETScore) {
+    try {
+      // Validate scores
+      this.validateScores(scores);
+
+      // Calculate total score
+      const totalScore = this.calculateTotalScore(scores);
+      console.log('Total Score:', totalScore);
+
+      // Get latest historical data
+      const historicalData = await this.getLatestHistoricalData();
+      if (!historicalData) {
+        throw new Error('Historical data not found');
+      }
+
+      // Calculate rank with improved logic
+      const predictedRank = this.calculateRankImproved(totalScore, historicalData);
+      console.log('Predicted Rank:', predictedRank);
+
+      // Get eligible colleges
+      const predictedColleges = await this.getPredictedColleges(predictedRank);
+
+      return {
+        totalScore,
+        predictedRank,
+        predictedColleges,
+        scoreAnalysis: {
+          categoryStatus: this.checkCategoryStatus(totalScore, historicalData),
+          subjectWiseAnalysis: this.analyzeSubjectPerformance(scores)
         }
+      };
+    } catch (error: any) {
+      console.error('Prediction error:', error);
+      throw new Error(`Prediction failed: ${error.message}`);
+    }
+  }
+
+  private calculateRankImproved(totalScore: number, historicalData: INEETHistoricalData): number {
+    // Sort the score ranges for proper calculation
+    const sortedRanges = [...historicalData.scoreRangeDistribution].sort((a, b) => {
+      const [aMin] = a.range.split('-').map(Number);
+      const [bMin] = b.range.split('-').map(Number);
+      return bMin - aMin;
+    });
+
+    // Find the closest range for the given score
+    let targetRange = sortedRanges[0];
+    let minDifference = Infinity;
+
+    for (const range of sortedRanges) {
+      const [min, max] = range.range.split('-').map(Number);
+      const rangeMid = (min + max) / 2;
+      const difference = Math.abs(totalScore - rangeMid);
+
+      if (difference < minDifference) {
+        minDifference = difference;
+        targetRange = range;
+      }
     }
 
-    private calculateNEETScore(scores: NEETScore): number {
-        return scores.physics + scores.chemistry + scores.biology;
+    // Calculate rank based on the closest range
+    const [rangeMin, rangeMax] = targetRange.range.split('-').map(Number);
+    const rangeSize = rangeMax - rangeMin;
+    
+    // Calculate position within range (0 to 1)
+    let positionInRange: number;
+    
+    if (totalScore <= rangeMin) {
+      positionInRange = 1; // Worst rank in this range
+    } else if (totalScore >= rangeMax) {
+      positionInRange = 0; // Best rank in this range
+    } else {
+      positionInRange = 1 - ((totalScore - rangeMin) / rangeSize);
     }
 
-    private predictRank(totalScore: number): number {
-        // This is a simplified rank prediction algorithm
-        // In a real application, this would use more sophisticated statistical models
-        const maxScore = 720;
-        const estimatedTopScore = 715;
-        const totalApplicants = 2000000; // Approximate number of NEET applicants
+    // Calculate the actual rank
+    const rangeStartRank = targetRange.averageRank + (targetRange.numberOfStudents / 2);
+    const rangeEndRank = Math.max(1, targetRange.averageRank - (targetRange.numberOfStudents / 2));
+    
+    const predictedRank = Math.round(
+      rangeEndRank + (positionInRange * (rangeStartRank - rangeEndRank))
+    );
 
-        const percentile = (totalScore / estimatedTopScore) * 100;
-        return Math.round((100 - percentile) * (totalApplicants / 100));
+    return Math.max(1, Math.min(predictedRank, historicalData.totalCandidates));
+  }
+
+  private async getPredictedColleges(rank: number) {
+    try {
+      const minRank = Math.max(1, rank - 5000);
+      const maxRank = rank + 2000;
+      
+      let colleges = await this.predictionRepository.findCollegesByRankRange(minRank, maxRank);
+      
+      if (!colleges || colleges.length === 0) {
+        colleges = await this.predictionRepository.findAllColleges();
+      }
+      
+      return colleges;
+    } catch (error: any) {
+      console.error('Error fetching colleges:', error);
+      return [];
     }
+  }
 
-    private calculateAdmissionProbability(predictedRank: number, collegeCutoff: number): number {
-        const rankDifference = collegeCutoff - predictedRank;
-        if (rankDifference > 5000) return 0.95;
-        if (rankDifference > 2000) return 0.8;
-        if (rankDifference > 0) return 0.6;
-        if (rankDifference > -2000) return 0.3;
-        return 0.1;
-    }
+  private validateScores(scores: NEETScore): void {
+    Object.entries(scores).forEach(([subject, score]) => {
+      if (score === undefined || score === null) {
+        throw new Error(`${subject} score is required`);
+      }
+      if (!Number.isInteger(score)) {
+        throw new Error(`${subject} score must be an integer`);
+      }
+      if (score < 0 || score > this.SUBJECT_MAX_SCORE) {
+        throw new Error(`${subject} score must be between 0 and ${this.SUBJECT_MAX_SCORE}`);
+      }
+    });
+  }
 
-    async predictColleges(scores: NEETScore): Promise<PredictionResult> {
-        this.validateScores(scores);
+  private calculateTotalScore(scores: NEETScore): number {
+    return scores.physics + scores.chemistry + scores.biology;
+  }
 
-        const totalScore = this.calculateNEETScore(scores);
-        const predictedRank = this.predictRank(totalScore);
+  private async getLatestHistoricalData(): Promise<INEETHistoricalData | null> {
+    return await NEETHistoricalData.findOne().sort({ year: -1 }).exec();
+  }
 
-        const eligibleColleges = await this.repository.findCollegesByRankRange(
-            predictedRank - 5000,
-            predictedRank + 10000
-        );
+  private checkCategoryStatus(totalScore: number, historicalData: INEETHistoricalData) {
+    return {
+      general: totalScore >= historicalData.cutoffScores.general,
+      obc: totalScore >= historicalData.cutoffScores.obc,
+      sc: totalScore >= historicalData.cutoffScores.sc,
+      st: totalScore >= historicalData.cutoffScores.st
+    };
+  }
 
-        const predictedColleges = eligibleColleges.map(college => ({
-            college,
-            admissionProbability: this.calculateAdmissionProbability(predictedRank, college.lastYearCutoff)
-        })).filter(prediction => prediction.admissionProbability > 0.1)
-          .sort((a, b) => b.admissionProbability - a.admissionProbability);
+  private analyzeSubjectPerformance(scores: NEETScore) {
+    return {
+      physics: {
+        score: scores.physics,
+        percentage: (scores.physics / this.SUBJECT_MAX_SCORE) * 100,
+        status: this.getPerformanceStatus(scores.physics)
+      },
+      chemistry: {
+        score: scores.chemistry,
+        percentage: (scores.chemistry / this.SUBJECT_MAX_SCORE) * 100,
+        status: this.getPerformanceStatus(scores.chemistry)
+      },
+      biology: {
+        score: scores.biology,
+        percentage: (scores.biology / this.SUBJECT_MAX_SCORE) * 100,
+        status: this.getPerformanceStatus(scores.biology)
+      }
+    };
+  }
 
-        return {
-            predictedRank,
-            predictedColleges: predictedColleges.slice(0, 10) // Return top 10 most likely colleges
-        };
-    }
+  private getPerformanceStatus(score: number): 'Excellent' | 'Good' | 'Average' | 'NeedsImprovement' {
+    const percentage = (score / this.SUBJECT_MAX_SCORE) * 100;
+    if (percentage >= 85) return 'Excellent';
+    if (percentage >= 70) return 'Good';
+    if (percentage >= 50) return 'Average';
+    return 'NeedsImprovement';
+  }
 }
-

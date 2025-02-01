@@ -24,6 +24,7 @@ export class NEETPredictionController {
                 data: prediction
             });
         } catch (error: any) {
+            console.log("error in ",error);
             res.status(error.statusCode || 400).json({
                 success: false,
                 error: error.message
