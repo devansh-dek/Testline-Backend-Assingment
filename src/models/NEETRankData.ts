@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-interface INEETHistoricalData extends Document {
+export interface INEETHistoricalData extends Document {
   year: number;
   totalSeats: number;
   totalCandidates: number;

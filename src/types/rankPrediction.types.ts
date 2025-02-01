@@ -10,7 +10,9 @@ export interface PerformanceMetrics {
   }
   
   export interface RankPredictionResult {
+    userId: number;
     predictedScore: number;
+    originalScore?: number;
     predictedRank: {
       best: number;
       average: number;
@@ -19,5 +21,8 @@ export interface PerformanceMetrics {
     confidence: number;
     category: string;
     performanceMetrics: PerformanceMetrics;
+    lastUpdated: Date;
+    isAdjusted?: boolean;
   }
+  
   
