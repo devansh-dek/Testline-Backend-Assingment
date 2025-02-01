@@ -6,6 +6,8 @@ import quizRoutes from './routes/quiz.routes';
 import analysisRoutes from './routes/analysis.routes';
 import rankPrediction from './routes/rankPrediction.routes';
 import historicalDataRoutes from './routes/historicalData.routes';
+import NeetCollegeRoutes from './routes/neetPrediction.routes';
+
 dotenv.config();
 
 const app: Application = express();
@@ -37,6 +39,7 @@ app.use('/api', quizRoutes);
 app.use('/api', analysisRoutes);
 app.use('/api', rankPrediction);
 app.use('/api', historicalDataRoutes);
+app.use('/api', NeetCollegeRoutes);
 
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
